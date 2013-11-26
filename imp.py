@@ -5,8 +5,14 @@ import readline
 import sys
 import os
 import cmd
+import time
 
-global host, user, password, database
+
+class Connection(object):
+    host = "127.0.0.1"
+    user = ""
+    password = ""
+    database = ""
 
 
 class MysqlRequest(object):
@@ -17,7 +23,7 @@ class MysqlRequest(object):
 
     def __call__(self, line):
         db = MySQLdb.connect(
-            host, user, password, database
+            connect.host, connect.user, connect.password, connect.database
         )
         values = self.func(db.cursor(), line)
         db.close()
@@ -27,7 +33,9 @@ class MysqlRequest(object):
 class Prompt(cmd.Cmd):
     prompt = ">> "
     tables = []
+    databases = []
     to_dir = False
+    connect = ""
 
     @MysqlRequest
     def requestTables(cursor, line):
@@ -36,10 +44,26 @@ class Prompt(cmd.Cmd):
             table[0] for table in cursor.fetchall()
         ]
 
+    @MysqlRequest
+    def requestDatabases(cursor, line):
+        cursor.execute("SHOW DATABASES")
+        return [
+            data[0] for data in cursor.fetchall()
+        ]
+
     def do_help(self, line):
         print "Commands availables : "
         print 'tables, dump, restore, clear'
         print "count table_name, truncate table_name"
+
+    def do_use(self, base):
+        self.connect.database = base
+        self.tables = self.requestTables("")
+        self.use(base)
+
+    @MysqlRequest
+    def use(cursor, base):
+        cursor.execute("USE %s" % (base))
 
     def do_exit(self, line):
         sys.exit()
@@ -83,9 +107,57 @@ class Prompt(cmd.Cmd):
     #     if not self.to_dir:
     #         self.get_target_dir()
 
-    # def do_dump(self, line):
-    #     if self.to_dir is False:
-    #         self.get_target_dir()
+    def do_dump(self, line):
+        path = self.get_path()
+        for table in self.tables:
+            filepath = os.path.join(path, "%s.sql" % (table))
+            content = self.dump_table(table)
+            dump = open(filepath, "w")
+            dump.writelines(content)
+            dump.close()
+
+    @MysqlRequest
+    def dump_table(cursor, table):
+        data = "DROP TABLE IF EXISTS `" + str(table) + "`;"
+
+        cursor.execute("SHOW CREATE TABLE `" + str(table) + "`;")
+        data += "\n" + str(cursor.fetchone()[1]) + ";\n\n"
+
+        cursor.execute("SELECT * FROM `" + str(table) + "`;")
+        for row in cursor.fetchall():
+            data += "INSERT INTO `" + str(table) + "` VALUES("
+            first = True
+            for field in row:
+                if not first:
+                    data += ', '
+                data += '"' + str(field) + '"'
+                first = False
+
+            data += ");\n"
+        data += "\n\n"
+        return data
+
+    def get_path(self):
+        if self.to_dir is False:
+            self.get_target_dir()
+
+        root = os.path.join(self.to_dir, self.connect.database)
+        if not os.path.exists(root):
+            os.makedirs(root)
+
+        filename = os.path.join(root, "imppy-%d" % (int(time.time())))
+        if not os.path.exists(filename):
+            os.makedirs(filename)
+        return filename
+
+    def complete_use(self, text, line, start_index, end_index):
+        if text:
+            return [
+                data for data in self.databases
+                if data.startswith(text)
+            ]
+        else:
+            return self.databases
 
     def complete_count(self, text, line, start_index, end_index):
         return self.tables_complete(text)
@@ -137,19 +209,21 @@ class Prompt(cmd.Cmd):
 
 
 def main():
-    global host, user, password, database
-    host = "127.0.0.1"
+    global connect
+    connect = Connection
     for arg in sys.argv:
         if '-b=' in arg:
-            database = arg[3:]
+            connect.database = arg[3:]
         if '-u=' in arg:
-            user = arg[3:]
+            connect.user = arg[3:]
         if '-h=' in arg:
-            host = arg[3:]
+            connect.host = arg[3:]
 
-    password = getpass.getpass()
+    connect.password = getpass.getpass()
     prompt = Prompt()
+    prompt.connect = connect
     prompt.tables = prompt.requestTables("")
+    prompt.databases = prompt.requestDatabases("")
     readline.set_completer_delims(' \t\n;')
     prompt.cmdloop()
 
