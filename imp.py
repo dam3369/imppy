@@ -6,6 +6,8 @@ import sys
 import os
 import cmd
 import time
+import glob
+import subprocess
 
 
 class Connection(object):
@@ -103,9 +105,45 @@ class Prompt(cmd.Cmd):
     #         print excep.args[1]
     #         pass
 
-    # def do_restore(self, line):
-    #     if not self.to_dir:
-    #         self.get_target_dir()
+    def do_restore(self, line):
+        self.drop_tables()
+        path = self.get_lastest_folder()
+        preg = path + os.path.sep + '*.sql'
+        request = self.get_export_request()
+        for table_dump in glob.glob(preg):
+            print str(request) + '"' + str(table_dump) + '"'
+            os.system(str(request) + str(table_dump))
+
+    def get_export_request(self):
+        if self.connect.password == "":
+            return "mysql -u %s -h %s -b %s < " % (self.connect.user, self.connect.host, self.connect.database)
+        else:
+            return "mysql -u %s -p%s -h %s -b %s < " % (self.connect.user, self.connect.password, self.connect.host, self.connect.database)
+
+    @MysqlRequest
+    def restore_table(cursor, filename):
+        for line in open(filename, "r"):
+            if line != "":
+                cursor.execute(line)
+
+    def get_lastest_folder(self):
+        results = []
+        root = os.path.join(self.to_dir, self.connect.database)
+        for path in os.listdir(root):
+            bd = os.path.join(root, path)
+            if os.path.isdir(bd):
+                results.append(bd)
+        return max(results, key=os.path.getmtime)
+
+    def drop_tables(self):
+        for table in self.tables:
+            self.drop_table(table)
+
+    @MysqlRequest
+    def drop_table(cursor, table):
+        cursor.execute("SET foreign_key_checks = 0;")
+        cursor.execute("DROP TABLE %s;" % (table))
+        cursor.execute("SET foreign_key_checks = 1;")
 
     def do_dump(self, line):
         path = self.get_path()
@@ -118,10 +156,11 @@ class Prompt(cmd.Cmd):
 
     @MysqlRequest
     def dump_table(cursor, table):
-        data = "DROP TABLE IF EXISTS `" + str(table) + "`;"
+        data = "SET foreign_key_checks = 0;\n"
+        data += "DROP TABLE IF EXISTS `" + str(table) + "`;\n"
 
         cursor.execute("SHOW CREATE TABLE `" + str(table) + "`;")
-        data += "\n" + str(cursor.fetchone()[1]) + ";\n\n"
+        data += str(cursor.fetchone()[1]) + ";\n"
 
         cursor.execute("SELECT * FROM `" + str(table) + "`;")
         for row in cursor.fetchall():
@@ -134,7 +173,7 @@ class Prompt(cmd.Cmd):
                 first = False
 
             data += ");\n"
-        data += "\n\n"
+        data += "SET foreign_key_checks = 1;\n"
         return data
 
     def get_path(self):
@@ -182,7 +221,6 @@ class Prompt(cmd.Cmd):
         res = [
             p for p in self.listdir(tmp) if p.startswith(rest)
         ]
-        # more than one match, or single match which does not exist (typo)
         if len(res) == 1:
             return [
                 os.path.join(dirname, p)
@@ -192,10 +230,8 @@ class Prompt(cmd.Cmd):
 
         if len(res) > 1 or not os.path.exists(path):
             return res
-        # resolved to a single directory, so return list of files below it
         if os.path.isdir(path):
             return [os.path.join(path, p) for p in self.listdir(path)]
-        # exact file match terminates this completion
         return [path + ' ']
 
     def listdir(self, root):
