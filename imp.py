@@ -12,7 +12,7 @@ import subprocess
 
 class Connection(object):
     host = "127.0.0.1"
-    user = ""
+    user = "root"
     password = ""
     database = ""
 
@@ -89,7 +89,8 @@ class Prompt(cmd.Cmd):
         self.to_dir = line
 
     def do_tables(self, line):
-        print self.requestTables("")
+        self.tables = self.requestTables("")
+        print self.tables
 
     # @MysqlRequest
     # def do_truncate(cursor, table):
@@ -180,6 +181,9 @@ class Prompt(cmd.Cmd):
         if self.to_dir is False:
             self.get_target_dir()
 
+        if not os.path.exists(self.to_dir):
+            os.makedirs(self.to_dir)
+
         root = os.path.join(self.to_dir, self.connect.database)
         if not os.path.exists(root):
             os.makedirs(root)
@@ -260,6 +264,7 @@ def main():
     prompt.connect = connect
     prompt.tables = prompt.requestTables("")
     prompt.databases = prompt.requestDatabases("")
+    prompt.to_dir = os.path.join(os.path.expanduser("~"), "imppy-dump")
     readline.set_completer_delims(' \t\n;')
     prompt.cmdloop()
 
