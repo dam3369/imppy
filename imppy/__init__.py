@@ -7,7 +7,6 @@ import os
 import cmd
 import time
 import glob
-import subprocess
 
 
 class Connection(object):
