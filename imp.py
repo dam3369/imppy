@@ -92,19 +92,18 @@ class Prompt(cmd.Cmd):
         self.tables = self.requestTables("")
         print self.tables
 
-    # @MysqlRequest
-    # def do_truncate(cursor, table):
-    #     try:
-    #         if not table:
-    #             print "table_name needed"
-    #             return
-    #         cursor.execute("SET foreign_key_checks=0")
-    #         value = cursor.execute("SELECT @@foreign_key_checks")
-    #         print value
-    #         cursor.execute("SET foreign_key_checks=1")
-    #     except MySQLdb.Error as excep:
-    #         print excep.args[1]
-    #         pass
+    @MysqlRequest
+    def do_truncate(cursor, table):
+        try:
+            if not table:
+                print "table_name needed"
+                return
+            cursor.execute("SET foreign_key_checks=0")
+            cursor.execute("TRUNCATE TABLE %s;" % (table))
+            cursor.execute("SET foreign_key_checks=1")
+        except MySQLdb.Error as excep:
+            print excep.args[1]
+            pass
 
     def do_restore(self, line):
         self.drop_tables()
@@ -112,7 +111,7 @@ class Prompt(cmd.Cmd):
         preg = path + os.path.sep + '*.sql'
         request = self.get_export_request()
         for table_dump in glob.glob(preg):
-            print str(request) + '"' + str(table_dump) + '"'
+            print "Restoring %s" % table_dump
             os.system(str(request) + str(table_dump))
 
     def get_export_request(self):
@@ -150,32 +149,15 @@ class Prompt(cmd.Cmd):
         path = self.get_path()
         for table in self.tables:
             filepath = os.path.join(path, "%s.sql" % (table))
-            content = self.dump_table(table)
-            dump = open(filepath, "w")
-            dump.writelines(content)
-            dump.close()
+            request = self.get_dump_request(table, filepath)
+            print "Dumping %s" % table
+            os.system(str(request))
 
-    @MysqlRequest
-    def dump_table(cursor, table):
-        data = "SET foreign_key_checks = 0;\n"
-        data += "DROP TABLE IF EXISTS `" + str(table) + "`;\n"
-
-        cursor.execute("SHOW CREATE TABLE `" + str(table) + "`;")
-        data += str(cursor.fetchone()[1]) + ";\n"
-
-        cursor.execute("SELECT * FROM `" + str(table) + "`;")
-        for row in cursor.fetchall():
-            data += "INSERT INTO `" + str(table) + "` VALUES("
-            first = True
-            for field in row:
-                if not first:
-                    data += ', '
-                data += '"' + str(field) + '"'
-                first = False
-
-            data += ");\n"
-        data += "SET foreign_key_checks = 1;\n"
-        return data
+    def get_dump_request(self, table, path):
+        if self.connect.password == "":
+            return "mysqldump -u %s -h %s --add-drop-table %s %s --result-file=%s" % (self.connect.user, self.connect.host, self.connect.database, table, path)
+        else:
+            return "mysqldump -u %s -p%s -h %s  --add-drop-table %s %s --result-file=%s" % (self.connect.user, self.connect.password, self.connect.host, self.connect.database, table, path)
 
     def get_path(self):
         if self.to_dir is False:
@@ -246,6 +228,14 @@ class Prompt(cmd.Cmd):
                 name += os.sep
             res.append(name)
         return res
+
+
+def addslashes(s):
+    l = ["\\", '"', "'", "\0", ]
+    for i in l:
+        if i in s:
+            s = s.replace(i, '\\'+i)
+    return s
 
 
 def main():
