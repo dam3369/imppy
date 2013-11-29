@@ -8,4 +8,10 @@ setup(name='imppy',
       author_email='n.dufreche@gmail.com',
       license='MIT',
       packages=['imppy'],
+      scripts=['bin/imppy'],
+      install_requires=[
+        'MySQL-python',
+        'readline',
+        'cmd2',
+      ],
       zip_safe=False)
