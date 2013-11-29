@@ -249,6 +249,10 @@ def addslashes(s):
     return s
 
 
+def print_help():
+    return 'usage: imppy [--database, -d [database name]] [--user, -u [mysql user]] [--host, -h [host database]] [--help]'
+
+
 def main():
     global connect
     connect = Connection
@@ -256,12 +260,12 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "d:u:h:", ["help", "database=", "user=", "host="])
     except getopt.GetoptError:
-        print 'imppy -d <database> -u <user> -h <host>'
+        print print_help()
         sys.exit(2)
 
     for opt, arg in opts:
         if opt == '--help':
-            print 'imppy -d <database> -u <user> -h <host>'
+            print print_help()
             sys.exit()
         elif opt in ('-d', '--database'):
             connect.database = arg
