@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='imppy',
-      version='0.1',
+      version='0.2',
       description='little importer dev tool',
       url='https://github.com/ndufreche/imppy',
       author='Nicolas Dufreche',
