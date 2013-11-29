@@ -7,7 +7,7 @@ import os
 import cmd
 import time
 import glob
-import subprocess
+import getopt
 
 
 class Connection(object):
@@ -27,7 +27,13 @@ class MysqlRequest(object):
         db = MySQLdb.connect(
             connect.host, connect.user, connect.password, connect.database
         )
-        values = self.func(db.cursor(), line)
+        try:
+            values = ''
+            values = self.func(db.cursor(), line)
+        except MySQLdb.Error as excep:
+            print excep.args[1]
+            pass
+
         db.close()
         return values
 
@@ -54,20 +60,25 @@ class Prompt(cmd.Cmd):
         ]
 
     def do_help(self, line):
-        print "Commands availables : "
-        print 'tables, dump, restore, clear'
-        print "count table_name, truncate table_name"
+        print "Commands availables :"
+        print '- tables : "Show tables"'
+        print '- dump : "dump database"'
+        print '- restore <optional table> : "restore the last database or table dump"'
+        print '- count <table> : "count the table entries"'
+        print '- truncate <table> : "remove all table entries"'
+        print '- set_path <path> : "change the imppy work folder destination'
 
     def do_use(self, base):
         self.connect.database = base
-        self.tables = self.requestTables("")
         self.use(base)
 
     @MysqlRequest
     def use(cursor, base):
-        cursor.execute("USE %s" % (base))
+        cursor.execute("USE `%s`" % (base))
 
     def do_exit(self, line):
+        print ""
+        print "Goodbye"
         sys.exit()
 
     @MysqlRequest
@@ -76,7 +87,7 @@ class Prompt(cmd.Cmd):
             if not table:
                 print "table_name needed"
                 return
-            cursor.execute("SELECT COUNT(*) FROM " + table)
+            cursor.execute("SELECT COUNT(*) FROM `%s`" % table)
             print cursor.fetchone()[0]
         except MySQLdb.Error as excep:
             print excep.args[1]
@@ -99,32 +110,39 @@ class Prompt(cmd.Cmd):
                 print "table_name needed"
                 return
             cursor.execute("SET foreign_key_checks=0")
-            cursor.execute("TRUNCATE TABLE %s;" % (table))
+            cursor.execute("TRUNCATE TABLE `%s`;" % (table))
             cursor.execute("SET foreign_key_checks=1")
         except MySQLdb.Error as excep:
             print excep.args[1]
             pass
 
     def do_restore(self, line):
-        self.drop_tables()
+        if not line:
+            self.restore_tables()
+        else:
+            self.restore_table(line)
+
+    def restore_tables(self):
         path = self.get_lastest_folder()
         preg = path + os.path.sep + '*.sql'
-        request = self.get_export_request()
         for table_dump in glob.glob(preg):
-            print "Restoring %s" % table_dump
-            os.system(str(request) + str(table_dump))
+            self.restore(table_dump)
+
+    def restore_table(self, table):
+        path = self.get_lastest_folder()
+        table_dump = path + os.path.sep + table + '.sql'
+        self.restore(table_dump)
+
+    def restore(self, dump):
+        request = self.get_export_request()
+        print "Restoring %s" % dump
+        os.system(str(request) + str(dump))
 
     def get_export_request(self):
         if self.connect.password == "":
             return "mysql -u %s -h %s -b %s < " % (self.connect.user, self.connect.host, self.connect.database)
         else:
             return "mysql -u %s -p%s -h %s -b %s < " % (self.connect.user, self.connect.password, self.connect.host, self.connect.database)
-
-    @MysqlRequest
-    def restore_table(cursor, filename):
-        for line in open(filename, "r"):
-            if line != "":
-                cursor.execute(line)
 
     def get_lastest_folder(self):
         results = []
@@ -134,16 +152,6 @@ class Prompt(cmd.Cmd):
             if os.path.isdir(bd):
                 results.append(bd)
         return max(results, key=os.path.getmtime)
-
-    def drop_tables(self):
-        for table in self.tables:
-            self.drop_table(table)
-
-    @MysqlRequest
-    def drop_table(cursor, table):
-        cursor.execute("SET foreign_key_checks = 0;")
-        cursor.execute("DROP TABLE %s;" % (table))
-        cursor.execute("SET foreign_key_checks = 1;")
 
     def do_dump(self, line):
         path = self.get_path()
@@ -188,6 +196,9 @@ class Prompt(cmd.Cmd):
         return self.tables_complete(text)
 
     def complete_truncate(self, text, line, start_index, end_index):
+        return self.tables_complete(text)
+
+    def complete_restore(self, text, line, start_index, end_index):
         return self.tables_complete(text)
 
     def tables_complete(self, text):
@@ -241,22 +252,37 @@ def addslashes(s):
 def main():
     global connect
     connect = Connection
-    for arg in sys.argv:
-        if '-b=' in arg:
-            connect.database = arg[3:]
-        if '-u=' in arg:
-            connect.user = arg[3:]
-        if '-h=' in arg:
-            connect.host = arg[3:]
 
-    connect.password = getpass.getpass()
-    prompt = Prompt()
-    prompt.connect = connect
-    prompt.tables = prompt.requestTables("")
-    prompt.databases = prompt.requestDatabases("")
-    prompt.to_dir = os.path.join(os.path.expanduser("~"), "imppy-dump")
-    readline.set_completer_delims(' \t\n;')
-    prompt.cmdloop()
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "d:u:h:", ["help", "database=", "user=", "host="])
+    except getopt.GetoptError:
+        print 'imppy -d <database> -u <user> -h <host>'
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == '--help':
+            print 'imppy -d <database> -u <user> -h <host>'
+            sys.exit()
+        elif opt in ('-d', '--database'):
+            connect.database = arg
+        elif opt in ('-u', '--user'):
+            connect.user = arg
+        elif opt in ('-h', '--host'):
+            connect.host = arg
+
+    try:
+        connect.password = getpass.getpass()
+        prompt = Prompt()
+        prompt.connect = connect
+        if connect.database:
+            prompt.tables = prompt.requestTables("")
+        prompt.databases = prompt.requestDatabases("")
+        prompt.to_dir = os.path.join(os.path.expanduser("~"), "imppy-dump")
+        readline.set_completer_delims(' \t\n;')
+        prompt.cmdloop("Welcome")
+    except KeyboardInterrupt:
+        print ""
+        print "Goodbye"
 
 if __name__ == '__main__':
     main()
