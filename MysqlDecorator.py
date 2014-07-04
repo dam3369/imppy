@@ -46,7 +46,7 @@ class MysqlProtectedRequest(object):
             db.commit()
         except MySQLdb.Error as excep:
             print excep.args[1]
-            done = False;
+            done = False
             db.rollback()
             pass
 
