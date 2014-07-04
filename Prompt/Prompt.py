@@ -101,3 +101,15 @@ class Prompt(cmd.Cmd):
                 name += os.sep
             res.append(name)
         return res
+
+    def getCotents(self, table, column):
+        sql = 'SELECT uid, %s FROM %s' % (column, table)
+        return self.request(sql)
+
+    @MysqlRequest
+    def request(cursor, sql):
+        return cursor.execute(sql)
+
+    def cleanContens(self, contents):
+        for content in contents:
+            Encoding.clean(content)

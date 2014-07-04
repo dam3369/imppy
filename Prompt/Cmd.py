@@ -3,8 +3,10 @@
 from Complete import Complete
 from MysqlDecorator import *
 from Connection import Connection
+# from Encoding import Encoding
 import sys
 import os
+import string
 
 class Cmd(Complete):
 
@@ -30,7 +32,7 @@ class Cmd(Complete):
     def do_count(cursor, table):
         try:
             if not table:
-                print "table_name needed"
+                print "table needed"
                 return
             cursor.execute("SELECT COUNT(*) FROM `%s`" % table)
             print cursor.fetchone()[0]
@@ -77,4 +79,16 @@ class Cmd(Complete):
             os.system(str(request))
         self.unlock_database
 
-    #def do_clean(self, line):
+    def do_clean(self, line):
+        array = line.split(' ')
+        if len(array) != 2:
+            print 'table and column needed'
+            return
+        table = array[0]
+        column = array[1]
+        try:
+            contents = self.getContents(talbe, column)
+            self.cleanContents(contents)
+        except MySQLdb.Error as excep:
+            print excep.args[1]
+            pass

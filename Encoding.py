@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 
-# import cchardet as chardet
+import cchardet as chardet
 
-# class String(object):
+class Encoding(object):
 
-#     def detectecEncoding(self, text):
-#         unicod = text
-#         detected = cchardet.detect(text)
+    def detectecEncoding(self, text):
+        unicod = text
+        detected = cchardet.detect(text)
 
-
-#     @staticmethod
-#     def convertToUtf(text):
-
+    @staticmethod
+    def clean(text):
+        encoding = detectecEncoding(text)
+        if (encoding != 'utf-8'):
+            text = text.encode('utf-8')
+        return text
