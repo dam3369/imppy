@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 class Connection(object):
     host = "127.0.0.1"
     user = "root"

@@ -1,12 +1,13 @@
-from PromptHelp import PromptHelp
+# -*- coding: utf-8 -*-
+
 from MysqlDecorator import *
 from Connection import Connection
-import sys
 import os
 import time
 import glob
+import cmd
 
-class Prompt(PromptHelp):
+class Prompt(cmd.Cmd):
     prompt = ">> "
     tables = []
     databases = []
@@ -27,59 +28,9 @@ class Prompt(PromptHelp):
             data[0] for data in cursor.fetchall()
         ]
 
-    def do_use(self, base):
-        self.connect.database = base
-        self.use(base)
-
     @MysqlRequest
     def use(cursor, base):
         cursor.execute("USE `%s`" % (base))
-
-    def do_exit(self, line):
-        print ""
-        print "Goodbye"
-        sys.exit()
-
-    @MysqlRequest
-    def do_count(cursor, table):
-        try:
-            if not table:
-                print "table_name needed"
-                return
-            cursor.execute("SELECT COUNT(*) FROM `%s`" % table)
-            print cursor.fetchone()[0]
-        except MySQLdb.Error as excep:
-            print excep.args[1]
-            pass
-
-    def do_set_path(self, line):
-        if not line:
-            print "path not specified"
-            return
-        self.to_dir = line
-
-    def do_tables(self, line):
-        self.tables = self.requestTables("")
-        print self.tables
-
-    @MysqlRequest
-    def do_truncate(cursor, table):
-        try:
-            if not table:
-                print "table_name needed"
-                return
-            cursor.execute("SET foreign_key_checks=0")
-            cursor.execute("TRUNCATE TABLE `%s`;" % (table))
-            cursor.execute("SET foreign_key_checks=1")
-        except MySQLdb.Error as excep:
-            print excep.args[1]
-            pass
-
-    def do_restore(self, line):
-        if not line:
-            self.restore_tables()
-        else:
-            self.restore_table(line)
 
     def restore_tables(self):
         path = self.get_lastest_folder()
@@ -111,16 +62,6 @@ class Prompt(PromptHelp):
             if os.path.isdir(bd):
                 results.append(bd)
         return max(results, key=os.path.getmtime)
-
-    def do_dump(self, line):
-        path = self.get_path()
-        self.lock_database
-        for table in self.tables:
-            filepath = os.path.join(path, "%s.sql" % (table))
-            request = self.get_dump_request(table, filepath)
-            print "Dumping %s" % table
-            os.system(str(request))
-        self.unlock_database
 
     @MysqlRequest
     def lock_database(cursor, line):

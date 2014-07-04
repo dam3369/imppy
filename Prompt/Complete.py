@@ -1,15 +1,8 @@
-import cmd
+# -*- coding: utf-8 -*-
 
-class PromptHelp(cmd.Cmd):
+from Prompt import Prompt
 
-    def do_help(self, line):
-        print "Commands availables :"
-        print '- tables : "Show tables"'
-        print '- dump : "dump database"'
-        print '- restore <optional table> : "restore the last database or table dump"'
-        print '- count <table> : "count the table entries"'
-        print '- truncate <table> : "remove all table entries"'
-        print '- set_path <path> : "change the imppy work folder destination'
+class Complete(Prompt):
 
     def complete_use(self, text, line, start_index, end_index):
         if text:

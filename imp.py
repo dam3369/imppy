@@ -1,10 +1,12 @@
 #! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import getpass
 import readline
 import sys
 import os
 import getopt
-from Prompt import Prompt
+from Prompt.Cmd import Cmd
 from Connection import Connection
 
 def addslashes(s):
@@ -41,7 +43,7 @@ def main():
 
     try:
         connect.password = getpass.getpass()
-        prompt = Prompt()
+        prompt = Cmd()
         if connect.database:
             prompt.tables = prompt.requestTables("")
         prompt.databases = prompt.requestDatabases("")
